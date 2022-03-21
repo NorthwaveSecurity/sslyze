@@ -162,7 +162,6 @@ class TlsConfigurationChecker:
 
         self.check_certificates(server_scan_result, config, all_issues)
         self.check_tls_ciphers(server_scan_result, config, all_issues)
-        self.check_certificates(server_scan_result, config, all_issues)
         self.check_tls_curves(server_scan_result, config, all_issues)
         self.check_tls_vulnerabilities(server_scan_result, config, all_issues)
 
@@ -358,13 +357,14 @@ def _check_certificates(
 
         deployed_signature_algorithms.add(leaf_cert.signature_algorithm_oid._name)
 
-        # Validate the cert's lifespan
-        leaf_cert_lifespan = leaf_cert.not_valid_after - leaf_cert.not_valid_before
-        if leaf_cert_lifespan.days > config.maximum_certificate_lifespan:
-            issues_with_certificates["maximum_certificate_lifespan"] = (
-                f"Certificate life span is {leaf_cert_lifespan.days} days,"
-                f" should be less than {config.maximum_certificate_lifespan}."
-            )
+        if hasattr(config, "maximum_certificate_lifespan"):
+            # Validate the cert's lifespan
+            leaf_cert_lifespan = leaf_cert.not_valid_after - leaf_cert.not_valid_before
+            if leaf_cert_lifespan.days > config.maximum_certificate_lifespan:
+                issues_with_certificates["maximum_certificate_lifespan"] = (
+                    f"Certificate life span is {leaf_cert_lifespan.days} days,"
+                    f" should be less than {config.maximum_certificate_lifespan}."
+                )
 
     # TODO(AD): It's unclear whether the Mozilla profile/configs takes into accounts servers with multiple leaf certs
     #  What follows is my personal guess as to how it should work for multi-certs deployments...

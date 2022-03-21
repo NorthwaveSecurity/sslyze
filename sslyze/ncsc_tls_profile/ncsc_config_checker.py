@@ -28,9 +28,7 @@ class TlsConfigurationAsJson(pydantic.BaseModel):
     dh_param_size: Optional[int]
     ecdh_param_size: int
     hsts_min_age: int
-    maximum_certificate_lifespan: int
     ocsp_staple: bool
-    recommended_certificate_lifespan: int
     rsa_key_size: Optional[int]
     server_preferred_order: bool
     tls_curves: Set[str]

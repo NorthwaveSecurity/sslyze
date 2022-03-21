@@ -135,12 +135,7 @@ def main() -> None:
                     f" review the scan logs above."
                 )
 
-    if not are_all_servers_compliant:
-        # Return a non-zero error code to signal failure (for example to fail a CI/CD pipeline)
-        sys.exit(1)
-
     # Check the results against the NCSC config if needed
-    are_all_servers_compliant = True
     # TODO(AD): Expose format_title method
     title = ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS guidelines")
     print()
