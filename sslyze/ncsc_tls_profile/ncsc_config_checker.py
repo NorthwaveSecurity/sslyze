@@ -27,10 +27,8 @@ class TlsConfigurationAsJson(pydantic.BaseModel):
     ciphers: Set[str]
     dh_param_size: Optional[int]
     ecdh_param_size: int
-    hsts_min_age: int
     ocsp_staple: bool
     rsa_key_size: Optional[int]
-    server_preferred_order: bool
     tls_curves: Set[str]
     tls_versions: Set[str]
 
