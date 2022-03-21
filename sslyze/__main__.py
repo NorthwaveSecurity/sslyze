@@ -13,11 +13,9 @@ from sslyze import (
     ServerScanResultAsJson,
 )
 from sslyze.json.json_output import InvalidServerStringAsJson
-from sslyze.config_checker import (
+from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     ServerScanResultIncomplete,
     ServerNotCompliantWithTlsConfiguration,
-)
-from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     TlsConfigurationChecker as MozillaTlsConfigurationChecker,
 )
 from sslyze.ncsc_tls_profile.ncsc_config_checker import (

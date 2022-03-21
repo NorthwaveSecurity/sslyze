@@ -2,7 +2,7 @@ from pathlib import Path
 import pydantic
 from enum import Enum
 from typing import Optional, Set, Dict
-from sslyze.config_checker import (
+from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     ServerScanResultIncomplete,
     SCAN_COMMANDS_NEEDED_BY_CHECKER,
     ServerNotCompliantWithTlsConfiguration,
