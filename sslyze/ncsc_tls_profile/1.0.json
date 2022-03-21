@@ -1,6 +1,6 @@
 {
     "version": 1.0,
-    "href": "https://ssl-config.mozilla.org/guidelines/5.6.json",
+    "href": "https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1",
     "configurations": {
         "modern": {
             "certificate_curves": ["prime256v1", "secp384r1"],
