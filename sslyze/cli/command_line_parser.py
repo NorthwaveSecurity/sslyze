@@ -12,12 +12,12 @@ from sslyze.cli.server_string_parser import (
 )
 from sslyze.connection_helpers.opportunistic_tls_helpers import ProtocolWithOpportunisticTlsEnum
 from sslyze.mozilla_tls_profile.mozilla_config_checker import (
-    MozillaTlsConfigurationEnum,
-    SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER,
+    TlsConfigurationEnum as MozillaTlsConfigurationEnum,
+    SCAN_COMMANDS_NEEDED_BY_CHECKER as SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER,
 )
 from sslyze.ncsc_tls_profile.ncsc_config_checker import (
-    NCSCTlsConfigurationEnum,
-    SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER,
+    TlsConfigurationEnum as NCSCTlsConfigurationEnum,
+    SCAN_COMMANDS_NEEDED_BY_CHECKER as SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER,
 )
 from sslyze.plugins import plugin_base
 from sslyze.plugins.certificate_info.trust_stores.trust_store_repository import TrustStoresRepository

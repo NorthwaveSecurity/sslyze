@@ -13,15 +13,15 @@ from sslyze import (
     ServerScanResultAsJson,
 )
 from sslyze.json.json_output import InvalidServerStringAsJson
-from sslyze.mozilla_tls_profile.mozilla_config_checker import (
-    MozillaTlsConfigurationChecker,
-    ServerNotCompliantWithMozillaTlsConfiguration,
+from sslyze.config_checker import (
     ServerScanResultIncomplete,
+    ServerNotCompliantWithTlsConfiguration,
+)
+from sslyze.mozilla_tls_profile.mozilla_config_checker import (
+    TlsConfigurationChecker as MozillaTlsConfigurationChecker,
 )
 from sslyze.ncsc_tls_profile.ncsc_config_checker import (
-    NCSCTlsConfigurationChecker,
-    ServerNotCompliantWithNCSCTlsConfiguration,
-    ServerScanResultIncomplete as NCSCScanResultIncomplete,
+    TlsConfigurationChecker as NCSCTlsConfigurationChecker,
 )
 
 
@@ -121,7 +121,7 @@ def main() -> None:
                 )
                 print(f"    {server_scan_result.server_location.display_string}: OK - Compliant.\n")
 
-            except ServerNotCompliantWithMozillaTlsConfiguration as e:
+            except ServerNotCompliantWithTlsConfiguration as e:
                 are_all_servers_compliant = False
                 print(f"    {server_scan_result.server_location.display_string}: FAILED - Not compliant.")
                 for criteria, error_description in e.issues.items():
@@ -162,14 +162,14 @@ def main() -> None:
                 )
                 print(f"    {server_scan_result.server_location.display_string}: OK - Compliant.\n")
 
-            except ServerNotCompliantWithNCSCTlsConfiguration as e:
+            except ServerNotCompliantWithTlsConfiguration as e:
                 are_all_servers_compliant = False
                 print(f"    {server_scan_result.server_location.display_string}: FAILED - Not compliant.")
                 for criteria, error_description in e.issues.items():
                     print(f"        * {criteria}: {error_description}")
                 print()
 
-            except NCSCScanResultIncomplete:
+            except ServerScanResultIncomplete:
                 are_all_servers_compliant = False
                 print(
                     f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"

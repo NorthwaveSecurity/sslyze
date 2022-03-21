@@ -20,107 +20,67 @@ from sslyze import (
     SupportedEllipticCurvesScanResult,
 )
 
+from sslyze.config_checker import (
+    CiphersAsJson,
+    TlsConfigurationAsJson,
+    ServerScanResultIncomplete,
+    SCAN_COMMANDS_NEEDED_BY_CHECKER,
+    ServerNotCompliantWithTlsConfiguration,
+)
 
-class _NCSCCiphersAsJson(pydantic.BaseModel):
-    caddy: Set[str]
-    go: Set[str]
-    iana: Set[str]
-    openssl: Set[str]
+from sslyze.mozilla_tls_profile.mozilla_config_checker import (
+    TlsConfigurationChecker
+)
 
-
-class _NCSCTlsConfigurationAsJson(pydantic.BaseModel):
-    certificate_curves: Set[str]
-    certificate_signatures: Set[str]
-    certificate_types: Set[str]
-    ciphersuites: Set[str]
-    ciphers: _NCSCCiphersAsJson
-    dh_param_size: Optional[int]
-    ecdh_param_size: int
-    hsts_min_age: int
-    maximum_certificate_lifespan: int
-    ocsp_staple: bool
-    recommended_certificate_lifespan: int
-    rsa_key_size: Optional[int]
-    server_preferred_order: bool
-    tls_curves: Set[str]
-    tls_versions: Set[str]
+class _AllTlsConfigurationsAsJson(pydantic.BaseModel):
+    modern: TlsConfigurationAsJson
+    intermediate: TlsConfigurationAsJson
+    old: TlsConfigurationAsJson
 
 
-class _AllNCSCTlsConfigurationsAsJson(pydantic.BaseModel):
-    modern: _NCSCTlsConfigurationAsJson
-    intermediate: _NCSCTlsConfigurationAsJson
-    old: _NCSCTlsConfigurationAsJson
-
-
-class _NCSCTlsProfileAsJson(pydantic.BaseModel):
+class TlsProfileAsJson(pydantic.BaseModel):
     version: str
     href: str
-    configurations: _AllNCSCTlsConfigurationsAsJson
+    configurations: _AllTlsConfigurationsAsJson
 
 
-class NCSCTlsConfigurationEnum(str, Enum):
+class TlsConfigurationEnum(str, Enum):
     MODERN = "modern"
     INTERMEDIATE = "intermediate"
     OLD = "old"
 
 
-class ServerNotCompliantWithNCSCTlsConfiguration(Exception):
-    def __init__(
-        self, ncsc_config: NCSCTlsConfigurationEnum, issues: Dict[str, str],
-    ):
-        self.ncsc_config = ncsc_config
-        self.issues = issues
-
-
-class ServerScanResultIncomplete(Exception):
+class NCSCServerScanResultIncomplete(ServerScanResultIncomplete):
     """The server scan result does not have enough information to check it against NCSC's configuration.
     """
 
-
-SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER: Set[ScanCommand] = {
-    ScanCommand.SSL_2_0_CIPHER_SUITES,
-    ScanCommand.SSL_3_0_CIPHER_SUITES,
-    ScanCommand.TLS_1_0_CIPHER_SUITES,
-    ScanCommand.TLS_1_1_CIPHER_SUITES,
-    ScanCommand.TLS_1_2_CIPHER_SUITES,
-    ScanCommand.TLS_1_3_CIPHER_SUITES,
-    ScanCommand.HEARTBLEED,
-    ScanCommand.ROBOT,
-    ScanCommand.OPENSSL_CCS_INJECTION,
-    ScanCommand.TLS_COMPRESSION,
-    ScanCommand.SESSION_RENEGOTIATION,
-    ScanCommand.CERTIFICATE_INFO,
-    ScanCommand.ELLIPTIC_CURVES,
-}
-
-
-class NCSCTlsConfigurationChecker:
+class TlsConfigurationChecker(TlsConfigurationChecker):
     version = "1.0"
 
-    def __init__(self, ncsc_tls_profile: _NCSCTlsProfileAsJson):
-        self._ncsc_tls_profile = ncsc_tls_profile
+    def __init__(self, tls_profile: TlsProfileAsJson):
+        self._tls_profile = tls_profile
 
     @classmethod
-    def get_default(cls) -> "NCSCTlsConfigurationChecker":
+    def get_default(cls) -> "TlsConfigurationChecker":
         json_profile_path = Path(__file__).parent.absolute() / (cls.version + ".json")
         json_profile_as_str = json_profile_path.read_text()
-        parsed_profile = _NCSCTlsProfileAsJson(**json.loads(json_profile_as_str))
+        parsed_profile = TlsProfileAsJson(**json.loads(json_profile_as_str))
         return cls(parsed_profile)
 
-    def check_server(self, against_config: NCSCTlsConfigurationEnum, server_scan_result: ServerScanResult,) -> None:
+    def check_server(self, against_config: TlsConfigurationEnum, server_scan_result: ServerScanResult,) -> None:
         # Ensure the scan was successful
         if server_scan_result.scan_status != ServerScanStatusEnum.COMPLETED:
             raise ServerScanResultIncomplete("The server scan was not completed.")
 
         # Ensure all the scan command we need were run successfully
-        for scan_command in SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER:
+        for scan_command in SCAN_COMMANDS_NEEDED_BY_CHECKER:
             scan_cmd_attempt = getattr(server_scan_result.scan_result, scan_command.value)
             if scan_cmd_attempt.status != ScanCommandAttemptStatusEnum.COMPLETED:
                 raise ServerScanResultIncomplete(f"The {scan_command.value} result is missing.")
 
         # Now let's check the server's scan results against the NCSC config
-        ncsc_config: _NCSCTlsConfigurationAsJson = getattr(
-            self._ncsc_tls_profile.configurations, against_config.value
+        config: TlsConfigurationAsJson = getattr(
+            self._tls_profile.configurations, against_config.value
         )
         all_issues: Dict[str, str] = {}
 
@@ -129,19 +89,19 @@ class NCSCTlsConfigurationChecker:
         assert server_scan_result.scan_result.certificate_info
         assert server_scan_result.scan_result.certificate_info.result
         issues_with_certificates = _check_certificates(
-            cert_info_result=server_scan_result.scan_result.certificate_info.result, ncsc_config=ncsc_config,
+            cert_info_result=server_scan_result.scan_result.certificate_info.result, config=config,
         )
         all_issues.update(issues_with_certificates)
 
         # Checks on the TLS versions and cipher suites
         assert server_scan_result.scan_result
-        issues_with_tls_ciphers = _check_tls_versions_and_ciphers(server_scan_result.scan_result, ncsc_config)
+        issues_with_tls_ciphers = _check_tls_versions_and_ciphers(server_scan_result.scan_result, config)
         all_issues.update(issues_with_tls_ciphers)
 
         # Checks on the TLS curves
         assert server_scan_result.scan_result.elliptic_curves.result
         issues_with_tls_curves = _check_tls_curves(
-            server_scan_result.scan_result.elliptic_curves.result, ncsc_config,
+            server_scan_result.scan_result.elliptic_curves.result, config,
         )
         all_issues.update(issues_with_tls_curves)
 
@@ -150,13 +110,13 @@ class NCSCTlsConfigurationChecker:
         all_issues.update(issues_with_tls_vulns)
 
         if all_issues:
-            raise ServerNotCompliantWithNCSCTlsConfiguration(
-                ncsc_config=against_config, issues=all_issues,
+            raise ServerNotCompliantWithTlsConfiguration(
+                config=against_config, issues=all_issues,
             )
 
 
 def _check_tls_curves(
-    tls_curves_result: SupportedEllipticCurvesScanResult, ncsc_config: _NCSCTlsConfigurationAsJson,
+    tls_curves_result: SupportedEllipticCurvesScanResult, config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
     issues_with_tls_curves = {}
     if tls_curves_result.supported_curves:
@@ -164,7 +124,7 @@ def _check_tls_curves(
     else:
         supported_curves = set()
 
-    tls_curves_difference = supported_curves - ncsc_config.tls_curves
+    tls_curves_difference = supported_curves - config.tls_curves
     if tls_curves_difference:
         issues_with_tls_curves[
             "tls_curves"
@@ -205,7 +165,7 @@ def _check_tls_vulnerabilities(scan_result: AllScanCommandsAttempts) -> Dict[str
 
 
 def _check_tls_versions_and_ciphers(
-    scan_result: AllScanCommandsAttempts, ncsc_config: _NCSCTlsConfigurationAsJson,
+    scan_result: AllScanCommandsAttempts, config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
     # First parse the results related to TLS versions and ciphers
     tls_versions_supported = set()
@@ -242,41 +202,41 @@ def _check_tls_versions_and_ciphers(
 
     # Then check the results
     issues_with_tls_ciphers = {}
-    tls_versions_difference = tls_versions_supported - ncsc_config.tls_versions
+    tls_versions_difference = tls_versions_supported - config.tls_versions
     if tls_versions_difference:
         issues_with_tls_ciphers[
             "tls_versions"
         ] = f"TLS versions {tls_versions_difference} are supported, but should be rejected."
 
-    tls_1_3_cipher_suites_difference = tls_1_3_cipher_suites_supported - ncsc_config.ciphersuites
+    tls_1_3_cipher_suites_difference = tls_1_3_cipher_suites_supported - config.ciphersuites
     if tls_1_3_cipher_suites_difference:
         issues_with_tls_ciphers[
             "ciphersuites"
         ] = f"TLS 1.3 cipher suites {tls_1_3_cipher_suites_difference} are supported, but should be rejected."
 
-    cipher_suites_difference = cipher_suites_supported - ncsc_config.ciphers.iana
+    cipher_suites_difference = cipher_suites_supported - config.ciphers.iana
     if cipher_suites_difference:
         issues_with_tls_ciphers[
             "ciphers"
         ] = f"Cipher suites {cipher_suites_difference} are supported, but should be rejected."
 
-    if ncsc_config.ecdh_param_size and smallest_ecdh_param_size < ncsc_config.ecdh_param_size:
+    if config.ecdh_param_size and smallest_ecdh_param_size < config.ecdh_param_size:
         issues_with_tls_ciphers["ecdh_param_size"] = (
             f"ECDH parameter size is {smallest_ecdh_param_size},"
-            f" should be superior or equal to {ncsc_config.ecdh_param_size}."
+            f" should be superior or equal to {config.ecdh_param_size}."
         )
 
-    if ncsc_config.dh_param_size and smallest_dh_param_size < ncsc_config.dh_param_size:
+    if config.dh_param_size and smallest_dh_param_size < config.dh_param_size:
         issues_with_tls_ciphers["dh_param_size"] = (
             f"DH parameter size is {smallest_dh_param_size},"
-            f" should be superior or equal to {ncsc_config.dh_param_size}."
+            f" should be superior or equal to {config.dh_param_size}."
         )
 
     return issues_with_tls_ciphers
 
 
 def _check_certificates(
-    cert_info_result: CertificateInfoScanResult, ncsc_config: _NCSCTlsConfigurationAsJson,
+    cert_info_result: CertificateInfoScanResult, config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
     issues_with_certificates = {}
     deployed_key_algorithms = set()
@@ -297,20 +257,20 @@ def _check_certificates(
         public_key = leaf_cert.public_key()
         if isinstance(public_key, EllipticCurvePublicKey):
             deployed_key_algorithms.add("ecdsa")
-            if public_key.curve.name not in ncsc_config.certificate_curves:
+            if public_key.curve.name not in config.certificate_curves:
                 # TODO(AD): Disable the check on the curves; not even Google and Cloudflare are compliant...
                 pass
                 # problems_with_certificates["certificate_curves"] = (
                 #     f"Certificate curve is {public_key.curve.name},"
-                #     f" should be one of {expected_ncsc_config.certificate_curves}."
+                #     f" should be one of {expected_config.certificate_curves}."
                 # )
 
         elif isinstance(public_key, RSAPublicKey):
             deployed_key_algorithms.add("rsa")
-            if ncsc_config.rsa_key_size and public_key.key_size < ncsc_config.rsa_key_size:
+            if config.rsa_key_size and public_key.key_size < config.rsa_key_size:
                 issues_with_certificates[
                     "rsa_key_size"
-                ] = f"RSA key size is {public_key.key_size}, minimum allowed is {ncsc_config.rsa_key_size}."
+                ] = f"RSA key size is {public_key.key_size}, minimum allowed is {config.rsa_key_size}."
 
         else:
             deployed_key_algorithms.add(public_key.__class__.__name__)
@@ -319,10 +279,10 @@ def _check_certificates(
 
         # Validate the cert's lifespan
         leaf_cert_lifespan = leaf_cert.not_valid_after - leaf_cert.not_valid_before
-        if leaf_cert_lifespan.days > ncsc_config.maximum_certificate_lifespan:
+        if leaf_cert_lifespan.days > config.maximum_certificate_lifespan:
             issues_with_certificates["maximum_certificate_lifespan"] = (
                 f"Certificate life span is {leaf_cert_lifespan.days} days,"
-                f" should be less than {ncsc_config.maximum_certificate_lifespan}."
+                f" should be less than {config.maximum_certificate_lifespan}."
             )
 
     # TODO(AD): It's unclear whether the NCSC profile/configs takes into accounts servers with multiple leaf certs
@@ -331,26 +291,26 @@ def _check_certificates(
     # Validate the public key algorithms
     # At least one of the NCSC cert types should have been detected in the server's cert deployments
     found_cert_type = False
-    for key_algorithm in ncsc_config.certificate_types:
+    for key_algorithm in config.certificate_types:
         if key_algorithm in deployed_key_algorithms:
             found_cert_type = True
             break
     if not found_cert_type:
         issues_with_certificates["certificate_types"] = (
             f"Deployed certificate types are {deployed_key_algorithms},"
-            f" should have at least one of {ncsc_config.certificate_types}."
+            f" should have at least one of {config.certificate_types}."
         )
 
     # Validate the signature algorithms
     found_sig_algorithm = False
-    for sig_algorithm in ncsc_config.certificate_signatures:
+    for sig_algorithm in config.certificate_signatures:
         if sig_algorithm in deployed_signature_algorithms:
             found_sig_algorithm = True
             break
     if not found_sig_algorithm:
         issues_with_certificates["certificate_signatures"] = (
             f"Deployed certificate signatures are {deployed_signature_algorithms},"
-            f" should have at least one of {ncsc_config.certificate_signatures}."
+            f" should have at least one of {config.certificate_signatures}."
         )
 
     return issues_with_certificates
