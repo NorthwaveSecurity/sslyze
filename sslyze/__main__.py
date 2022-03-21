@@ -142,16 +142,16 @@ def main() -> None:
     # Check the results against the NCSC config if needed
     are_all_servers_compliant = True
     # TODO(AD): Expose format_title method
-    title = ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS configuration")
+    title = ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS guidelines")
     print()
     print(title)
     if not parsed_command_line.check_against_ncsc_config:
-        print("    Disabled; use --ncsc_config={old, intermediate, modern}.\n")
+        print("    Disabled; use --ncsc_config={good, sufficient, weak}.\n")
     else:
 
         print(
             f'    Checking results against NCSC\'s "{parsed_command_line.check_against_ncsc_config}"'
-            f" configuration. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n"
+            f" guidelines. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n"
         )
         ncsc_checker = NCSCTlsConfigurationChecker.get_default()
         for server_scan_result in all_server_scan_results:

@@ -164,7 +164,7 @@ class CommandLineParser:
                 if getattr(args_command_list, option.option)
             ]
             if not did_user_enable_some_scan_commands:
-                setattr(args_command_list, "mozilla_config", MozillaTlsConfigurationEnum.INTERMEDIATE.value)
+                setattr(args_command_list, "ncsc_config", NCSCTlsConfigurationEnum.GOOD.value)
 
         # Enable the commands needed by --mozilla-config
         check_against_mozilla_config: Optional[MozillaTlsConfigurationEnum] = None

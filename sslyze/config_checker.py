@@ -5,6 +5,7 @@ from enum import Enum
 from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurvePublicKey
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from nassl.ephemeral_key_info import EcDhEphemeralKeyInfo, DhEphemeralKeyInfo
+from dataclasses import dataclass
 
 from sslyze import (
     ServerScanResult,
@@ -95,16 +96,25 @@ class ServerNotCompliantWithTlsConfiguration(Exception):
 class TlsConfigurationChecker:
     # Absolute path to the JSON configuration
     json_profile_path: str = None
+    # Class that holds the TLS profile class
+    TlsProfileAsJson = TlsProfileAsJson
+
     def __init__(self, tls_profile):
         self._tls_profile = tls_profile
 
     @classmethod
     def get_default(cls) -> "TlsConfigurationChecker":
         json_profile_as_str = cls.json_profile_path.read_text()
-        parsed_profile = TlsProfileAsJson(**json.loads(json_profile_as_str))
+        parsed_profile = cls.TlsProfileAsJson(**json.loads(json_profile_as_str))
         return cls(parsed_profile)
 
-    def check_server(self, against_config: TlsConfigurationEnum, server_scan_result: ServerScanResult,) -> None:
+    def get_config_to_check_against(self, against_config):
+        config: TlsConfigurationAsJson = getattr(
+            self._tls_profile.configurations, against_config.value
+        )
+        return config
+
+    def _priliminary_checks(self, server_scan_result: ServerScanResult) -> None:
         # Ensure the scan was successful
         if server_scan_result.scan_status != ServerScanStatusEnum.COMPLETED:
             raise ServerScanResultIncomplete("The server scan was not completed.")
@@ -114,37 +124,47 @@ class TlsConfigurationChecker:
             scan_cmd_attempt = getattr(server_scan_result.scan_result, scan_command.value)
             if scan_cmd_attempt.status != ScanCommandAttemptStatusEnum.COMPLETED:
                 raise ServerScanResultIncomplete(f"The {scan_command.value} result is missing.")
-
-        # Now let's check the server's scan results against the Mozilla config
-        config: TlsConfigurationAsJson = getattr(
-            self._tls_profile.configurations, against_config.value
-        )
-        all_issues: Dict[str, str] = {}
-
-        # Checks on the certificate
         assert server_scan_result.scan_result
         assert server_scan_result.scan_result.certificate_info
         assert server_scan_result.scan_result.certificate_info.result
+        assert server_scan_result.scan_result
+        assert server_scan_result.scan_result.elliptic_curves.result
+
+    def check_certificates(self, server_scan_result, config, all_issues):
+        # Checks on the certificate
         issues_with_certificates = _check_certificates(
             cert_info_result=server_scan_result.scan_result.certificate_info.result, config=config,
         )
         all_issues.update(issues_with_certificates)
 
+    def check_tls_ciphers(self, server_scan_result, config, all_issues):
         # Checks on the TLS versions and cipher suites
-        assert server_scan_result.scan_result
         issues_with_tls_ciphers = _check_tls_versions_and_ciphers(server_scan_result.scan_result, config)
         all_issues.update(issues_with_tls_ciphers)
 
+    def check_tls_curves(self, server_scan_result, config, all_issues):
         # Checks on the TLS curves
-        assert server_scan_result.scan_result.elliptic_curves.result
         issues_with_tls_curves = _check_tls_curves(
             server_scan_result.scan_result.elliptic_curves.result, config,
         )
         all_issues.update(issues_with_tls_curves)
 
+    def check_tls_vulnerabilities(self, server_scan_result, config, all_issues):
         # Checks on TLS vulnerabilities
         issues_with_tls_vulns = _check_tls_vulnerabilities(server_scan_result.scan_result)
         all_issues.update(issues_with_tls_vulns)
+
+    def check_server(self, against_config: TlsConfigurationEnum, server_scan_result: ServerScanResult,) -> None:
+        self._priliminary_checks(server_scan_result)
+        # Now let's check the server's scan results against the Mozilla config
+        config = self.get_config_to_check_against(against_config)
+        all_issues: Dict[str, str] = {}
+
+        self.check_certificates(server_scan_result, config, all_issues)
+        self.check_tls_ciphers(server_scan_result, config, all_issues)
+        self.check_certificates(server_scan_result, config, all_issues)
+        self.check_tls_curves(server_scan_result, config, all_issues)
+        self.check_tls_vulnerabilities(server_scan_result, config, all_issues)
 
         if all_issues:
             raise ServerNotCompliantWithTlsConfiguration(
@@ -201,10 +221,17 @@ def _check_tls_vulnerabilities(scan_result: AllScanCommandsAttempts) -> Dict[str
     return issues_with_tls_vulns
 
 
-def _check_tls_versions_and_ciphers(
-    scan_result: AllScanCommandsAttempts, config: TlsConfigurationAsJson,
-) -> Dict[str, str]:
-    # First parse the results related to TLS versions and ciphers
+@dataclass
+class ParsedTlsAndCipherResults:
+    tls_versions_supported: Set[str]
+    cipher_suites_supported: Set[str]
+    tls_1_3_cipher_suites_supported: Set[str]
+    curves_supported: Set[str]
+    smallest_ecdh_param_size: int
+    smallest_dh_param_size: int
+    
+
+def _parse_tls_and_cipher_results(scan_result):
     tls_versions_supported = set()
     cipher_suites_supported = set()
     tls_1_3_cipher_suites_supported = set()
@@ -236,41 +263,58 @@ def _check_tls_versions_and_ciphers(
 
                 elif isinstance(ephemeral_key, DhEphemeralKeyInfo):
                     smallest_dh_param_size = min([smallest_dh_param_size, ephemeral_key.size])
+    return ParsedTlsAndCipherResults(
+        tls_versions_supported=tls_versions_supported,
+        cipher_suites_supported=cipher_suites_supported,
+        tls_1_3_cipher_suites_supported=tls_1_3_cipher_suites_supported,
+        curves_supported=curves_supported,
+        smallest_ecdh_param_size=smallest_ecdh_param_size,
+        smallest_dh_param_size=smallest_dh_param_size,
+    )
 
-    # Then check the results
+
+def _get_issues_with_tls_ciphers(results: ParsedTlsAndCipherResults, config: TlsConfigurationAsJson):
     issues_with_tls_ciphers = {}
-    tls_versions_difference = tls_versions_supported - config.tls_versions
+    tls_versions_difference = results.tls_versions_supported - config.tls_versions
     if tls_versions_difference:
         issues_with_tls_ciphers[
             "tls_versions"
         ] = f"TLS versions {tls_versions_difference} are supported, but should be rejected."
 
-    tls_1_3_cipher_suites_difference = tls_1_3_cipher_suites_supported - config.ciphersuites
+    tls_1_3_cipher_suites_difference = results.tls_1_3_cipher_suites_supported - config.ciphersuites
     if tls_1_3_cipher_suites_difference:
         issues_with_tls_ciphers[
             "ciphersuites"
         ] = f"TLS 1.3 cipher suites {tls_1_3_cipher_suites_difference} are supported, but should be rejected."
 
-    cipher_suites_difference = cipher_suites_supported - config.ciphers.iana
+    cipher_suites_difference = results.cipher_suites_supported - config.ciphers.iana
     if cipher_suites_difference:
         issues_with_tls_ciphers[
             "ciphers"
         ] = f"Cipher suites {cipher_suites_difference} are supported, but should be rejected."
 
-    if config.ecdh_param_size and smallest_ecdh_param_size < config.ecdh_param_size:
+    if config.ecdh_param_size and results.smallest_ecdh_param_size < config.ecdh_param_size:
         issues_with_tls_ciphers["ecdh_param_size"] = (
-            f"ECDH parameter size is {smallest_ecdh_param_size},"
+            f"ECDH parameter size is {results.smallest_ecdh_param_size},"
             f" should be superior or equal to {config.ecdh_param_size}."
         )
 
-    if config.dh_param_size and smallest_dh_param_size < config.dh_param_size:
+    if config.dh_param_size and results.smallest_dh_param_size < config.dh_param_size:
         issues_with_tls_ciphers["dh_param_size"] = (
-            f"DH parameter size is {smallest_dh_param_size},"
+            f"DH parameter size is {results.smallest_dh_param_size},"
             f" should be superior or equal to {config.dh_param_size}."
         )
 
     return issues_with_tls_ciphers
 
+
+def _check_tls_versions_and_ciphers(
+    scan_result: AllScanCommandsAttempts, config: TlsConfigurationAsJson,
+) -> Dict[str, str]:
+    # First parse the results related to TLS versions and ciphers
+    results = _parse_tls_and_cipher_results(scan_result)
+    # Then check the results
+    return _get_issues_with_tls_ciphers(results, config)
 
 def _check_certificates(
     cert_info_result: CertificateInfoScanResult, config: TlsConfigurationAsJson,
