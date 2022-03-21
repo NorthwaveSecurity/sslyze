@@ -15,6 +15,10 @@ from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     MozillaTlsConfigurationEnum,
     SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER,
 )
+from sslyze.ncsc_tls_profile.ncsc_config_checker import (
+    NCSCTlsConfigurationEnum,
+    SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER,
+)
 from sslyze.plugins import plugin_base
 from sslyze.plugins.certificate_info.trust_stores.trust_store_repository import TrustStoresRepository
 from sslyze.plugins.plugin_base import OptParseCliOption
@@ -69,6 +73,9 @@ class ParsedCommandLine:
     # Mozilla compliance; None if shouldn't be run
     check_against_mozilla_config: Optional[MozillaTlsConfigurationEnum]
 
+    # NCSC compliance; None if shouldn't be run
+    check_against_ncsc_config: Optional[NCSCTlsConfigurationEnum]
+
 
 _STARTTLS_PROTOCOL_DICT = {
     "smtp": ProtocolWithOpportunisticTlsEnum.SMTP,
@@ -109,6 +116,16 @@ class CommandLineParser:
             " this check.",
         )
 
+        self.aparser.add_argument(
+            "--ncsc_config",
+            action="store",
+            dest="ncsc_config",
+            choices=[config.value for config in NCSCTlsConfigurationEnum] + ["disable"],
+            help="Shortcut to queue various scan commands needed to check the server's TLS configurations against NCSC's"
+            ' TLS guidelines. Set to "intermediate" by default. Use "disable" to disable'
+            " this check.",
+        )
+
         self.aparser.add_argument(dest="target", default=[], nargs="*", help="The list of servers to scan.")
 
     def parse_command_line(self) -> ParsedCommandLine:
@@ -140,7 +157,7 @@ class CommandLineParser:
             raise CommandLineParsingError("No targets to scan.")
 
         # Handle the case when no scan commands have been specified: run --mozilla-config=intermediate by default
-        if not args_command_list.mozilla_config:
+        if not args_command_list.mozilla_config and not args_command_list.ncsc_config:
             did_user_enable_some_scan_commands = [
                 getattr(args_command_list, option.option)
                 for option in self._get_plugin_scan_commands()
@@ -158,6 +175,17 @@ class CommandLineParser:
                 check_against_mozilla_config = MozillaTlsConfigurationEnum(args_command_list.mozilla_config)
 
             for scan_cmd in SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER:
+                cli_connector_cls = ScanCommandsRepository.get_implementation_cls(scan_cmd).cli_connector_cls
+                setattr(args_command_list, cli_connector_cls._cli_option, True)
+
+        check_against_ncsc_config: Optional[NCSCTlsConfigurationEnum] = None
+        if args_command_list.ncsc_config:
+            if args_command_list.ncsc_config == "disable":
+                check_against_ncsc_config = None
+            else:
+                check_against_ncsc_config = NCSCTlsConfigurationEnum(args_command_list.ncsc_config)
+
+            for scan_cmd in SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER:
                 cli_connector_cls = ScanCommandsRepository.get_implementation_cls(scan_cmd).cli_connector_cls
                 setattr(args_command_list, cli_connector_cls._cli_option, True)
 
@@ -304,6 +332,7 @@ class CommandLineParser:
             concurrent_server_scans_limit=concurrent_server_scans_limit,
             per_server_concurrent_connections_limit=per_server_concurrent_connections_limit,
             check_against_mozilla_config=check_against_mozilla_config,
+            check_against_ncsc_config=check_against_ncsc_config,
         )
 
     def _add_default_options(self) -> None:

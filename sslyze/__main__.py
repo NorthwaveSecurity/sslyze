@@ -18,6 +18,11 @@ from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     ServerNotCompliantWithMozillaTlsConfiguration,
     ServerScanResultIncomplete,
 )
+from sslyze.ncsc_tls_profile.ncsc_config_checker import (
+    NCSCTlsConfigurationChecker,
+    ServerNotCompliantWithNCSCTlsConfiguration,
+    ServerScanResultIncomplete as NCSCScanResultIncomplete,
+)
 
 
 def main() -> None:
@@ -124,6 +129,47 @@ def main() -> None:
                 print()
 
             except ServerScanResultIncomplete:
+                are_all_servers_compliant = False
+                print(
+                    f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"
+                    f" review the scan logs above."
+                )
+
+    if not are_all_servers_compliant:
+        # Return a non-zero error code to signal failure (for example to fail a CI/CD pipeline)
+        sys.exit(1)
+
+    # Check the results against the NCSC config if needed
+    are_all_servers_compliant = True
+    # TODO(AD): Expose format_title method
+    title = ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS configuration")
+    print()
+    print(title)
+    if not parsed_command_line.check_against_ncsc_config:
+        print("    Disabled; use --ncsc_config={old, intermediate, modern}.\n")
+    else:
+
+        print(
+            f'    Checking results against NCSC\'s "{parsed_command_line.check_against_ncsc_config}"'
+            f" configuration. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n"
+        )
+        ncsc_checker = NCSCTlsConfigurationChecker.get_default()
+        for server_scan_result in all_server_scan_results:
+            try:
+                ncsc_checker.check_server(
+                    against_config=parsed_command_line.check_against_ncsc_config,
+                    server_scan_result=server_scan_result,
+                )
+                print(f"    {server_scan_result.server_location.display_string}: OK - Compliant.\n")
+
+            except ServerNotCompliantWithNCSCTlsConfiguration as e:
+                are_all_servers_compliant = False
+                print(f"    {server_scan_result.server_location.display_string}: FAILED - Not compliant.")
+                for criteria, error_description in e.issues.items():
+                    print(f"        * {criteria}: {error_description}")
+                print()
+
+            except NCSCScanResultIncomplete:
                 are_all_servers_compliant = False
                 print(
                     f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"
