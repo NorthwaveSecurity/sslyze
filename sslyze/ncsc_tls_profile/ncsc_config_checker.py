@@ -47,6 +47,16 @@ class TlsProfileAsJson(pydantic.BaseModel):
     configurations: _AllTlsConfigurationsAsJson
 
 
+def merge_config(config_1, config_2):
+    config_1.ciphers |= config_2.ciphers
+    config_1.ciphersuites |= config_2.ciphersuites
+    config_1.certificate_curves |= config_2.certificate_curves
+    config_1.certificate_signatures |= config_2.certificate_signatures
+    config_1.certificate_types |= config_2.certificate_types
+    config_1.tls_curves |= config_2.tls_curves
+    config_1.tls_versions |= config_2.tls_versions
+
+
 class TlsConfigurationChecker(BaseTlsConfigurationChecker):
     json_profile_path = Path(__file__).parent.absolute() / "2.1.json"
     TlsProfileAsJson = TlsProfileAsJson 
@@ -54,15 +64,12 @@ class TlsConfigurationChecker(BaseTlsConfigurationChecker):
     def get_config_to_check_against(self, against_config):
         config = super().get_config_to_check_against(against_config)
         if against_config.value == TlsConfigurationEnum.SUFFICIENT:
-            # Good ciphers are also sufficient
-            config.ciphers |= self._tls_profile.configurations.good.ciphers
-            config.ciphersuites |= self._tls_profile.configurations.good.ciphersuites
+            # Good configurations are also sufficient
+            merge_config(config, self._tls_profile.configurations.good)
         if against_config.value == TlsConfigurationEnum.PHASE_OUT:
-            # All ciphers should be included
-            config.ciphers |= self._tls_profile.configurations.good.ciphers
-            config.ciphers |= self._tls_profile.configurations.sufficient.ciphers
-            config.ciphersuites |= self._tls_profile.configurations.good.ciphersuites
-            config.ciphersuites |= self._tls_profile.configurations.sufficient.ciphersuites
+            # All configurations should be included
+            merge_config(config, self._tls_profile.configurations.good)
+            merge_config(config, self._tls_profile.configurations.sufficient)
         return config
 
     def check_tls_ciphers(self, server_scan_result, config, all_issues):

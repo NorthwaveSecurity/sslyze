@@ -3,7 +3,7 @@
     "href": "https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1",
     "configurations": {
         "good": {
-            "certificate_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519"],
+            "certificate_curves": ["prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519"],
             "certificate_signatures": ["sha256WithRSAEncryption", "ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512"],
             "certificate_types": ["ecdsa", "rsa"],
             "ciphers": [
@@ -31,16 +31,15 @@
             "ecdh_param_size": 256,
             "hsts_min_age": 63072000,
             "ocsp_staple": true,
-            "oldest_clients": ["Firefox 63", "Android 10.0", "Chrome 70", "Edge 75", "Java 11", "OpenSSL 1.1.1", "Opera 57", "Safari 12.1"],
             "rsa_key_size": 3072,
             "server_preferred_order": false,
-            "tls_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519"],
+            "tls_curves": ["prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519"],
             "tls_versions": ["TLSv1.2", "TLSv1.3"]
         },
         "sufficient": {
-            "certificate_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519", "secp224r1"],
-            "certificate_signatures": ["sha256WithRSAEncryption", "ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512"],
-            "certificate_types": ["ecdsa", "rsa"],
+            "certificate_curves": ["X25519"],
+            "certificate_signatures": [],
+            "certificate_types": [],
             "ciphers": [
                 "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
                 "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256",
@@ -80,16 +79,15 @@
             "ecdh_param_size": 256,
             "hsts_min_age": 63072000,
             "ocsp_staple": true,
-            "oldest_clients": ["Firefox 27", "Android 4.4.2", "Chrome 31", "Edge", "IE 11 on Windows 7", "Java 8u31", "OpenSSL 1.0.1", "Opera 20", "Safari 9"],
             "rsa_key_size": 2048,
             "server_preferred_order": false,
-            "tls_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519", "secp224r1"],
-            "tls_versions": ["TLSv1.2", "TLSv1.3"]
+            "tls_curves": [],
+            "tls_versions": ["TLSv1.2"]
         },
         "phase_out": {
-            "certificate_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519", "secp224r1"],
-            "certificate_signatures": ["sha256WithRSAEncryption", "ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512"],
-            "certificate_types": ["rsa", "ecdsa"],
+            "certificate_curves": [],
+            "certificate_signatures": [],
+            "certificate_types": [],
             "ciphers": [
                 "TLS_AES_128_CCM_8_SHA256",
                 "TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA",
@@ -394,10 +392,9 @@
             "ecdh_param_size": 0,
             "hsts_min_age": 0,
             "ocsp_staple": true,
-            "oldest_clients": ["Firefox 1", "Android 2.3", "Chrome 1", "Edge 12", "IE8 on Windows XP", "Java 6", "OpenSSL 0.9.8", "Opera 5", "Safari 1"],
             "rsa_key_size": 0,
             "server_preferred_order": true,
-            "tls_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519", "secp224r1"],
+            "tls_curves": ["X25519"],
             "tls_versions": ["TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3", "SSLv1.0", "SSLv2.0", "SSLv3.0"]
         }
     }
