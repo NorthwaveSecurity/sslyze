@@ -48,7 +48,7 @@ class TlsProfileAsJson(pydantic.BaseModel):
 
 
 class TlsConfigurationChecker(BaseTlsConfigurationChecker):
-    json_profile_path = Path(__file__).parent.absolute() / "1.0.json"
+    json_profile_path = Path(__file__).parent.absolute() / "2.1.json"
     TlsProfileAsJson = TlsProfileAsJson 
 
     def get_config_to_check_against(self, against_config):

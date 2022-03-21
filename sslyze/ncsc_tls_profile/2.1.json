@@ -88,7 +88,7 @@
         },
         "phase_out": {
             "certificate_curves": ["X25519", "prime256v1", "secp384r1", "secp256r1", "curve 448", "curve 25519", "secp224r1"],
-            "certificate_signatures": ["ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512"],
+            "certificate_signatures": ["sha256WithRSAEncryption", "ecdsa-with-SHA256", "ecdsa-with-SHA384", "ecdsa-with-SHA512"],
             "certificate_types": ["rsa", "ecdsa"],
             "ciphers": [
                 "TLS_AES_128_CCM_8_SHA256",
