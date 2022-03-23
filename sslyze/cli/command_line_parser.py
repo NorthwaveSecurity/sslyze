@@ -166,28 +166,25 @@ class CommandLineParser:
             if not did_user_enable_some_scan_commands:
                 setattr(args_command_list, "ncsc_config", NCSCTlsConfigurationEnum.GOOD.value)
 
+        def check_against_config(setting, tls_config_enum, scan_commands):
+            if not setting or setting == "disable":
+                return None
+            for scan_cmd in scan_commands:
+                cli_connector_cls = ScanCommandsRepository.get_implementation_cls(scan_cmd).cli_connector_cls
+                setattr(args_command_list, cli_connector_cls._cli_option, True)
+            return tls_config_enum(setting)
+
         # Enable the commands needed by --mozilla-config
-        check_against_mozilla_config: Optional[MozillaTlsConfigurationEnum] = None
-        if args_command_list.mozilla_config:
-            if args_command_list.mozilla_config == "disable":
-                check_against_mozilla_config = None
-            else:
-                check_against_mozilla_config = MozillaTlsConfigurationEnum(args_command_list.mozilla_config)
+        check_against_mozilla_config = check_against_config(
+            args_command_list.mozilla_config, 
+            MozillaTlsConfigurationEnum, 
+            SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER)
 
-            for scan_cmd in SCAN_COMMANDS_NEEDED_BY_MOZILLA_CHECKER:
-                cli_connector_cls = ScanCommandsRepository.get_implementation_cls(scan_cmd).cli_connector_cls
-                setattr(args_command_list, cli_connector_cls._cli_option, True)
-
-        check_against_ncsc_config: Optional[NCSCTlsConfigurationEnum] = None
-        if args_command_list.ncsc_config:
-            if args_command_list.ncsc_config == "disable":
-                check_against_ncsc_config = None
-            else:
-                check_against_ncsc_config = NCSCTlsConfigurationEnum(args_command_list.ncsc_config)
-
-            for scan_cmd in SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER:
-                cli_connector_cls = ScanCommandsRepository.get_implementation_cls(scan_cmd).cli_connector_cls
-                setattr(args_command_list, cli_connector_cls._cli_option, True)
+        # Enable the commands needed by --mozilla-config
+        check_against_ncsc_config = check_against_config(
+            args_command_list.ncsc_config, 
+            NCSCTlsConfigurationEnum, 
+            SCAN_COMMANDS_NEEDED_BY_NCSC_CHECKER)
 
         # Handle JSON settings
         should_print_json_to_console = False

@@ -17,9 +17,11 @@ from sslyze.mozilla_tls_profile.mozilla_config_checker import (
     ServerScanResultIncomplete,
     ServerNotCompliantWithTlsConfiguration,
     TlsConfigurationChecker as MozillaTlsConfigurationChecker,
+    TlsConfigurationEnum as MozillaTlsConfigurationEnum,
 )
 from sslyze.ncsc_tls_profile.ncsc_config_checker import (
     TlsConfigurationChecker as NCSCTlsConfigurationChecker,
+    TlsConfigurationEnum as NCSCTlsConfigurationEnum,
 )
 
 
@@ -98,23 +100,21 @@ def main() -> None:
 
     # Check the results against the Mozilla config if needed
     are_all_servers_compliant = True
-    # TODO(AD): Expose format_title method
-    title = ObserverToGenerateConsoleOutput._format_title("Compliance against Mozilla TLS configuration")
-    print()
-    print(title)
-    if not parsed_command_line.check_against_mozilla_config:
-        print("    Disabled; use --mozilla_config={old, intermediate, modern}.\n")
-    else:
 
-        print(
-            f'    Checking results against Mozilla\'s "{parsed_command_line.check_against_mozilla_config}"'
-            f" configuration. See https://ssl-config.mozilla.org/ for more details.\n"
-        )
-        mozilla_checker = MozillaTlsConfigurationChecker.get_default()
+    def check_config(title, commandline_arg, config_name, config_enum, description, checker):
+        global are_all_servers_compliant
+        print()
+        print(title)
+        if not commandline_arg:
+            options = [config.value for config in config_enum]
+            print(f"    Disabled; use --{config_name}_config={options}.\n")
+            return
+        print(description)
+        checker = checker.get_default()
         for server_scan_result in all_server_scan_results:
             try:
-                mozilla_checker.check_server(
-                    against_config=parsed_command_line.check_against_mozilla_config,
+                checker.check_server(
+                    against_config=commandline_arg,
                     server_scan_result=server_scan_result,
                 )
                 print(f"    {server_scan_result.server_location.display_string}: OK - Compliant.\n")
@@ -132,42 +132,28 @@ def main() -> None:
                     f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"
                     f" review the scan logs above."
                 )
+
+    # TODO(AD): Expose format_title method
+    # Check the results against the Mozilla config if needed
+    check_config(
+        title = ObserverToGenerateConsoleOutput._format_title("Compliance against Mozilla TLS configuration"),
+        commandline_arg=parsed_command_line.check_against_mozilla_config,
+        config_name="mozilla",
+        config_enum=MozillaTlsConfigurationEnum,
+        description=f'    Checking results against Mozilla\'s "{parsed_command_line.check_against_mozilla_config}"'
+                    f" configuration. See https://ssl-config.mozilla.org/ for more details.\n",
+        checker=MozillaTlsConfigurationChecker)
 
     # Check the results against the NCSC config if needed
     # TODO(AD): Expose format_title method
-    title = ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS guidelines")
-    print()
-    print(title)
-    if not parsed_command_line.check_against_ncsc_config:
-        print("    Disabled; use --ncsc_config={good, sufficient, weak}.\n")
-    else:
-
-        print(
-            f'    Checking results against NCSC\'s "{parsed_command_line.check_against_ncsc_config}"'
-            f" guidelines. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n"
-        )
-        ncsc_checker = NCSCTlsConfigurationChecker.get_default()
-        for server_scan_result in all_server_scan_results:
-            try:
-                ncsc_checker.check_server(
-                    against_config=parsed_command_line.check_against_ncsc_config,
-                    server_scan_result=server_scan_result,
-                )
-                print(f"    {server_scan_result.server_location.display_string}: OK - Compliant.\n")
-
-            except ServerNotCompliantWithTlsConfiguration as e:
-                are_all_servers_compliant = False
-                print(f"    {server_scan_result.server_location.display_string}: FAILED - Not compliant.")
-                for criteria, error_description in e.issues.items():
-                    print(f"        * {criteria}: {error_description}")
-                print()
-
-            except ServerScanResultIncomplete:
-                are_all_servers_compliant = False
-                print(
-                    f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"
-                    f" review the scan logs above."
-                )
+    check_config(
+        title=ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS guidelines"), 
+        commandline_arg=parsed_command_line.check_against_ncsc_config,
+        config_name="ncsc", 
+        config_enum=NCSCTlsConfigurationEnum,
+        description=f'    Checking results against NCSC\'s "{parsed_command_line.check_against_ncsc_config}"'
+                    f" guidelines. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n",
+        checker=NCSCTlsConfigurationChecker)
 
     if not are_all_servers_compliant:
         # Return a non-zero error code to signal failure (for example to fail a CI/CD pipeline)
