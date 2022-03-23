@@ -122,7 +122,7 @@ class CommandLineParser:
             dest="ncsc_config",
             choices=[config.value for config in NCSCTlsConfigurationEnum] + ["disable"],
             help="Shortcut to queue various scan commands needed to check the server's TLS configurations against NCSC's"
-            ' TLS guidelines. Set to "intermediate" by default. Use "disable" to disable'
+            ' TLS guidelines. Set to "good" by default. Use "disable" to disable'
             " this check.",
         )
 
