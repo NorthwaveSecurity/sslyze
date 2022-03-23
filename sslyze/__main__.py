@@ -98,19 +98,18 @@ def main() -> None:
         # There are no results to present: all supplied server strings were invalid?
         sys.exit(0)
 
-    # Check the results against the Mozilla config if needed
     are_all_servers_compliant = True
 
     def check_config(title, commandline_arg, config_name, config_enum, description, checker):
-        global are_all_servers_compliant
         print()
         print(title)
         if not commandline_arg:
             options = [config.value for config in config_enum]
             print(f"    Disabled; use --{config_name}_config={options}.\n")
-            return
+            return True
         print(description)
         checker = checker.get_default()
+        are_all_servers_compliant = True
         for server_scan_result in all_server_scan_results:
             try:
                 checker.check_server(
@@ -132,10 +131,11 @@ def main() -> None:
                     f"    {server_scan_result.server_location.display_string}: ERROR - Scan did not run successfully;"
                     f" review the scan logs above."
                 )
+        return are_all_servers_compliant
 
     # TODO(AD): Expose format_title method
     # Check the results against the Mozilla config if needed
-    check_config(
+    are_all_servers_compliant &= check_config(
         title = ObserverToGenerateConsoleOutput._format_title("Compliance against Mozilla TLS configuration"),
         commandline_arg=parsed_command_line.check_against_mozilla_config,
         config_name="mozilla",
@@ -146,10 +146,10 @@ def main() -> None:
 
     # Check the results against the NCSC config if needed
     # TODO(AD): Expose format_title method
-    check_config(
+    are_all_servers_compliant &= check_config(
         title=ObserverToGenerateConsoleOutput._format_title("Compliance against NCSC TLS guidelines"), 
         commandline_arg=parsed_command_line.check_against_ncsc_config,
-        config_name="ncsc", 
+        config_name="ncsc",
         config_enum=NCSCTlsConfigurationEnum,
         description=f'    Checking results against NCSC\'s "{parsed_command_line.check_against_ncsc_config}"'
                     f" guidelines. See https://www.ncsc.nl/documenten/publicaties/2021/januari/19/ict-beveiligingsrichtlijnen-voor-transport-layer-security-2.1 for more details.\n",
