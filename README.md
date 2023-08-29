@@ -1,11 +1,6 @@
 SSLyze
 ======
 
-![Run Tests](https://github.com/nabla-c0d3/sslyze/workflows/Run%20Tests/badge.svg)
-[![Downloads](https://pepy.tech/badge/sslyze/month)](https://pepy.tech/project/sslyze)
-[![PyPI version](https://img.shields.io/pypi/v/sslyze.svg)](https://pypi.org/project/sslyze/)
-[![Python version](https://img.shields.io/pypi/pyversions/sslyze.svg)](https://pypi.org/project/sslyze/)
-
 SSLyze is a fast and powerful SSL/TLS scanning tool and Python library.
 
 SSLyze can analyze the SSL/TLS configuration of a server by connecting to it, in order to ensure that it uses strong
