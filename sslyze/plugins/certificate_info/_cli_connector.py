@@ -10,7 +10,10 @@ from cryptography.x509 import Certificate
 from cryptography.x509.ocsp import OCSPResponseStatus
 
 from sslyze.plugins.certificate_info._cert_chain_analyzer import CertificateDeploymentAnalysisResult
-from sslyze.plugins.certificate_info._certificate_utils import get_common_names, extract_dns_subject_alternative_names
+from sslyze.plugins.certificate_info._certificate_utils import (
+    get_common_names,
+    parse_subject_alternative_name_extension,
+)
 
 from sslyze.plugins.plugin_base import ScanCommandCliConnector, OptParseCliOption
 
@@ -295,15 +298,12 @@ class _CertificateInfoCliConnector(
             # DSA Key? https://github.com/nabla-c0d3/sslyze/issues/314
             pass
 
-        try:
-            # Print the SAN extension if there's one
-            text_output.append(
-                cls._format_field(
-                    "DNS Subject Alternative Names:", str(extract_dns_subject_alternative_names(certificate))
-                )
-            )
-        except KeyError:
-            pass
+        # Print the SAN extension if there's one
+        subj_alt_name_ext = parse_subject_alternative_name_extension(certificate)
+        if subj_alt_name_ext.dns_names:
+            text_output.append(cls._format_field("SubjAltName - DNS Names:", str(subj_alt_name_ext.dns_names)))
+        if subj_alt_name_ext.ip_addresses:
+            text_output.append(cls._format_field("SubjAltName - IP Addresses", str(subj_alt_name_ext.ip_addresses)))
 
         return text_output
 
@@ -327,8 +327,7 @@ def _get_issuer_as_short_text(certificate: Certificate) -> str:
 
 
 def _get_name_as_short_text(name_field: x509.Name) -> str:
-    """Convert a name field returned by the cryptography module to a string suitable for displaying it to the user.
-    """
+    """Convert a name field returned by the cryptography module to a string suitable for displaying it to the user."""
     # Name_field is supposed to be a Subject or an Issuer; print the CN if there is one
     common_names = get_common_names(name_field)
     if common_names:

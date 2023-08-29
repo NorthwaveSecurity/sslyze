@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, List, Dict
 
-import pydantic
-
+from sslyze.json.pydantic_utils import BaseModelWithOrmModeAndForbid
 from sslyze.json.scan_attempt_json import ScanCommandAttemptAsJson
 from sslyze.plugins.plugin_base import (
     ScanCommandResult,
@@ -35,8 +34,8 @@ class RobotScanResult(ScanCommandResult):
     robot_result: RobotScanResultEnum
 
 
-# Identical fields in the JSON output
-RobotScanResultAsJson = pydantic.dataclasses.dataclass(RobotScanResult, frozen=True)
+class RobotScanResultAsJson(BaseModelWithOrmModeAndForbid):
+    robot_result: RobotScanResultEnum
 
 
 class RobotScanAttemptAsJson(ScanCommandAttemptAsJson):
@@ -69,8 +68,7 @@ class _RobotCliConnector(ScanCommandCliConnector[RobotScanResult, None]):
 
 
 class RobotImplementation(ScanCommandImplementation[RobotScanResult, None]):
-    """Test a server for the ROBOT vulnerability.
-    """
+    """Test a server for the ROBOT vulnerability."""
 
     cli_connector_cls = _RobotCliConnector
 

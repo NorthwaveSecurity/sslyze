@@ -66,9 +66,9 @@ Checking results against Mozilla's "intermediate" configuration. See https://ssl
 mozilla.com:443: OK - Compliant.
 ```
 
-The Mozilla configuration to check against can be configured via `--mozilla-config={old, intermediate, modern}`:
+The Mozilla configuration to check against can be configured via `--mozilla_config={old, intermediate, modern}`:
 ```
-$ python -m sslyze --mozilla-config=modern mozilla.com
+$ python -m sslyze --mozilla_config=modern mozilla.com
 ```
 ```
 Checking results against Mozilla's "modern" configuration. See https://ssl-config.mozilla.org/ for more details.
@@ -102,7 +102,7 @@ $ invoke test
 License
 -------
 
-Copyright (c) 2021 Alban Diquet
+Copyright (c) 2023 Alban Diquet
 
 SSLyze is made available under the terms of the GNU Affero General Public License (AGPL). See LICENSE.txt for details and exceptions.
 

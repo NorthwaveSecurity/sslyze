@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Tuple
 
-import pydantic
 from nassl._nassl import OpenSSLError
 from nassl.legacy_ssl_client import LegacySslClient
 
+from sslyze.json.pydantic_utils import BaseModelWithOrmModeAndForbid
 from sslyze.json.scan_attempt_json import ScanCommandAttemptAsJson
 from sslyze.errors import ServerRejectedTlsHandshake
 from sslyze.plugins.plugin_base import (
@@ -34,8 +34,9 @@ class SessionRenegotiationScanResult(ScanCommandResult):
     is_vulnerable_to_client_renegotiation_dos: bool
 
 
-# Identical fields in the JSON output
-SessionRenegotiationScanResultAsJson = pydantic.dataclasses.dataclass(SessionRenegotiationScanResult, frozen=True)
+class SessionRenegotiationScanResultAsJson(BaseModelWithOrmModeAndForbid):
+    supports_secure_renegotiation: bool
+    is_vulnerable_to_client_renegotiation_dos: bool
 
 
 class SessionRenegotiationScanAttemptAsJson(ScanCommandAttemptAsJson):
@@ -76,8 +77,7 @@ class _SessionRenegotiationCliConnector(ScanCommandCliConnector[SessionRenegotia
 
 
 class SessionRenegotiationImplementation(ScanCommandImplementation[SessionRenegotiationScanResult, None]):
-    """Test a server for insecure TLS renegotiation and client-initiated renegotiation.
-    """
+    """Test a server for insecure TLS renegotiation and client-initiated renegotiation."""
 
     cli_connector_cls = _SessionRenegotiationCliConnector
 
@@ -114,8 +114,7 @@ class SessionRenegotiationImplementation(ScanCommandImplementation[SessionRenego
 
 
 def _test_secure_renegotiation(server_info: ServerConnectivityInfo) -> Tuple[_ScanJobResultEnum, bool]:
-    """Check whether the server supports secure renegotiation.
-    """
+    """Check whether the server supports secure renegotiation."""
     # Try with TLS 1.2 even if the server supports TLS 1.3 or higher as there is no reneg with TLS 1.3
     if server_info.tls_probing_result.highest_tls_version_supported.value >= TlsVersionEnum.TLS_1_3.value:
         tls_version_to_use = TlsVersionEnum.TLS_1_2
@@ -150,8 +149,7 @@ def _test_secure_renegotiation(server_info: ServerConnectivityInfo) -> Tuple[_Sc
 
 
 def _test_client_renegotiation(server_info: ServerConnectivityInfo) -> Tuple[_ScanJobResultEnum, bool]:
-    """Check whether the server honors session renegotiation requests.
-    """
+    """Check whether the server honors session renegotiation requests."""
     # Try with TLS 1.2 even if the server supports TLS 1.3 or higher as there is no reneg with TLS 1.3
     if server_info.tls_probing_result.highest_tls_version_supported.value >= TlsVersionEnum.TLS_1_3.value:
         tls_version_to_use = TlsVersionEnum.TLS_1_2

@@ -109,13 +109,39 @@ class TlsConfigurationChecker:
         parsed_profile = cls.TlsProfileAsJson(**json.loads(json_profile_as_str))
         return cls(parsed_profile)
 
-    def get_config_to_check_against(self, against_config):
-        config: TlsConfigurationAsJson = getattr(
-            self._tls_profile.configurations, against_config.value
+    def check_certificates(self, server_scan_result, config, all_issues):
+        # Checks on the certificate
+        issues_with_certificates = _check_certificates(
+            cert_info_result=server_scan_result.scan_result.certificate_info.result,
+            config=config,
         )
-        return config
+        all_issues.update(issues_with_certificates)
 
-    def _priliminary_checks(self, server_scan_result: ServerScanResult) -> None:
+    def check_tls_ciphers(self, server_scan_result, config, all_issues):
+        # Checks on the TLS versions and cipher suites
+        assert server_scan_result.scan_result
+        issues_with_tls_ciphers = _check_tls_versions_and_ciphers(server_scan_result.scan_result, config)
+        all_issues.update(issues_with_tls_ciphers)
+
+    def check_tls_curves(self, server_scan_result, config, all_issues):
+        # Checks on the TLS curves
+        assert server_scan_result.scan_result.elliptic_curves.result
+        issues_with_tls_curves = _check_tls_curves(
+            server_scan_result.scan_result.elliptic_curves.result, 
+            config,
+        )
+        all_issues.update(issues_with_tls_curves)
+
+    def check_tls_vulnerabilities(self, server_scan_result, config, all_issues):
+        # Checks on TLS vulnerabilities
+        issues_with_tls_vulns = _check_tls_vulnerabilities(server_scan_result.scan_result)
+        all_issues.update(issues_with_tls_vulns)
+
+    def check_server(
+        self,
+        against_config: TlsConfigurationEnum,
+        server_scan_result: ServerScanResult,
+    ) -> None:
         # Ensure the scan was successful
         if server_scan_result.scan_status != ServerScanStatusEnum.COMPLETED:
             raise ServerScanResultIncomplete("The server scan was not completed.")
@@ -125,41 +151,16 @@ class TlsConfigurationChecker:
             scan_cmd_attempt = getattr(server_scan_result.scan_result, scan_command.value)
             if scan_cmd_attempt.status != ScanCommandAttemptStatusEnum.COMPLETED:
                 raise ServerScanResultIncomplete(f"The {scan_command.value} result is missing.")
+
+        # Now let's check the server's scan results against the config
+        config: TlsConfigurationAsJson = getattr(
+            self._tls_profile.configurations, against_config.value
+        )
+        all_issues: Dict[str, str] = {}
+
         assert server_scan_result.scan_result
         assert server_scan_result.scan_result.certificate_info
         assert server_scan_result.scan_result.certificate_info.result
-        assert server_scan_result.scan_result
-        assert server_scan_result.scan_result.elliptic_curves.result
-
-    def check_certificates(self, server_scan_result, config, all_issues):
-        # Checks on the certificate
-        issues_with_certificates = _check_certificates(
-            cert_info_result=server_scan_result.scan_result.certificate_info.result, config=config,
-        )
-        all_issues.update(issues_with_certificates)
-
-    def check_tls_ciphers(self, server_scan_result, config, all_issues):
-        # Checks on the TLS versions and cipher suites
-        issues_with_tls_ciphers = _check_tls_versions_and_ciphers(server_scan_result.scan_result, config)
-        all_issues.update(issues_with_tls_ciphers)
-
-    def check_tls_curves(self, server_scan_result, config, all_issues):
-        # Checks on the TLS curves
-        issues_with_tls_curves = _check_tls_curves(
-            server_scan_result.scan_result.elliptic_curves.result, config,
-        )
-        all_issues.update(issues_with_tls_curves)
-
-    def check_tls_vulnerabilities(self, server_scan_result, config, all_issues):
-        # Checks on TLS vulnerabilities
-        issues_with_tls_vulns = _check_tls_vulnerabilities(server_scan_result.scan_result)
-        all_issues.update(issues_with_tls_vulns)
-
-    def check_server(self, against_config: TlsConfigurationEnum, server_scan_result: ServerScanResult,) -> None:
-        self._priliminary_checks(server_scan_result)
-        # Now let's check the server's scan results against the Mozilla config
-        config = self.get_config_to_check_against(against_config)
-        all_issues: Dict[str, str] = {}
 
         self.check_certificates(server_scan_result, config, all_issues)
         self.check_tls_ciphers(server_scan_result, config, all_issues)
@@ -168,12 +169,14 @@ class TlsConfigurationChecker:
 
         if all_issues:
             raise ServerNotCompliantWithTlsConfiguration(
-                config=against_config, issues=all_issues,
+                config=against_config, 
+                issues=all_issues,
             )
 
 
 def _check_tls_curves(
-    tls_curves_result: SupportedEllipticCurvesScanResult, config: TlsConfigurationAsJson,
+    tls_curves_result: SupportedEllipticCurvesScanResult, 
+    config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
     issues_with_tls_curves = {}
     if tls_curves_result.supported_curves:
@@ -273,7 +276,11 @@ def _parse_tls_and_cipher_results(scan_result):
     )
 
 
-def _get_issues_with_tls_ciphers(results: ParsedTlsAndCipherResults, config: TlsConfigurationAsJson):
+def _get_issues_with_tls_ciphers(
+    results: ParsedTlsAndCipherResults,
+    config: TlsConfigurationAsJson
+    ):
+    # Then check the results
     issues_with_tls_ciphers = {}
     tls_versions_difference = results.tls_versions_supported - config.tls_versions
     if tls_versions_difference:
@@ -309,15 +316,18 @@ def _get_issues_with_tls_ciphers(results: ParsedTlsAndCipherResults, config: Tls
 
 
 def _check_tls_versions_and_ciphers(
-    scan_result: AllScanCommandsAttempts, config: TlsConfigurationAsJson,
+    scan_result: AllScanCommandsAttempts,
+    config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
-    # First parse the results related to TLS versions and ciphers
-    results = _parse_tls_and_cipher_results(scan_result)
-    # Then check the results
-    return _get_issues_with_tls_ciphers(results, config)
+     # First parse the results related to TLS versions and ciphers
+     results = _parse_tls_and_cipher_results(scan_result)
+     # Then check the results
+     return _get_issues_with_tls_ciphers(results, config)
+
 
 def _check_certificates(
-    cert_info_result: CertificateInfoScanResult, config: TlsConfigurationAsJson,
+    cert_info_result: CertificateInfoScanResult, 
+    config: TlsConfigurationAsJson,
 ) -> Dict[str, str]:
     issues_with_certificates = {}
     deployed_key_algorithms = set()
@@ -332,7 +342,7 @@ def _check_certificates(
         if not cert_deployment.verified_certificate_chain:
             issues_with_certificates[
                 "certificate_path_validation"
-            ] = f"Certificate not path validation failed for {leaf_cert.subject.rfc4514_string()}."
+            ] = f"Certificate path validation failed for {leaf_cert.subject.rfc4514_string()}."
 
         # Validate the public key
         public_key = leaf_cert.public_key()
@@ -356,7 +366,7 @@ def _check_certificates(
         else:
             deployed_key_algorithms.add(public_key.__class__.__name__)
 
-        deployed_signature_algorithms.add(leaf_cert.signature_algorithm_oid._name)
+        deployed_signature_algorithms.add(leaf_cert.signature_algorithm_oid._name)  # type: ignore
 
         if hasattr(config, "maximum_certificate_lifespan"):
             # Validate the cert's lifespan

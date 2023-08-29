@@ -109,14 +109,19 @@ _HANDSHAKE_REJECTED_TLS_ERRORS = {
     "insufficient security": "TLS error: insufficient security",
     "block type is not 01": "TLS error: block type is not 01",  # Actually an RSA error
     "wrong ssl version": "TLS error: wrong SSL version",
+    "digest check failed": "TLS error: digest check failed",
     "sslv3 alert handshake failure": "TLS alert: handshake failure",
     "tlsv1 alert protocol version": "TLS alert: protocol version ",
     "tlsv1 alert decrypt error": "TLS alert: Decrypt error",
     "tlsv1 alert decode error": "TLS alert: Decode error",
     "Connection was shut down by peer": "Server closed the connection during the TLS handshake",
-    "alert bad record mac": "TLS alert: bad record mac",
+    # https://github.com/nabla-c0d3/sslyze/issues/562
+    "bad record mac": "TLS alert: bad record mac",
     "tlsv1 alert internal error": "TLS alert: Internal error",
     "illegal padding": "TLS alert: Illegal padding",
+    # illegal parameter is sometimes used by server to reject an invalid client certificate
+    # https://github.com/nabla-c0d3/sslyze/issues/555
+    "illegal parameter": "TLS alert: Illegal parameter",
     # Error returned by OpenSSL when the server didn't return a certificate that can work with the cipher suites
     # enabled in the client; for example client only supports EC cipher suites but server returned an RSA certificate
     "wrong certificate type": "Server returned wrong certificate type",
@@ -124,8 +129,7 @@ _HANDSHAKE_REJECTED_TLS_ERRORS = {
 
 
 class NoCiphersAvailableBugInSSlyze(Exception):
-    """Should never happen.
-    """
+    """Should never happen."""
 
 
 class SslConnection:

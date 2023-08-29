@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-import pydantic
 from nassl.legacy_ssl_client import LegacySslClient
 from nassl.ssl_client import ClientCertificateRequested
 
+from sslyze.json.pydantic_utils import BaseModelWithOrmModeAndForbid
 from sslyze.json.scan_attempt_json import ScanCommandAttemptAsJson
 from sslyze.plugins.plugin_base import (
     ScanCommandResult,
@@ -31,8 +31,8 @@ class CompressionScanResult(ScanCommandResult):
     supports_compression: bool
 
 
-# Identical fields in the JSON output
-CompressionScanResultAsJson = pydantic.dataclasses.dataclass(CompressionScanResult, frozen=True)
+class CompressionScanResultAsJson(BaseModelWithOrmModeAndForbid):
+    supports_compression: bool
 
 
 class CompressionScanAttemptAsJson(ScanCommandAttemptAsJson):
@@ -55,8 +55,7 @@ class _CompressionCliConnector(ScanCommandCliConnector[CompressionScanResult, No
 
 
 class CompressionImplementation(ScanCommandImplementation[CompressionScanResult, None]):
-    """Test a server for TLS compression support, which can be leveraged to perform a CRIME attack.
-    """
+    """Test a server for TLS compression support, which can be leveraged to perform a CRIME attack."""
 
     cli_connector_cls = _CompressionCliConnector
 

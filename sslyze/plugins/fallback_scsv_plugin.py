@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-import pydantic
 from nassl import _nassl
 from nassl.legacy_ssl_client import LegacySslClient
 
+from sslyze.json.pydantic_utils import BaseModelWithOrmModeAndForbid
 from sslyze.json.scan_attempt_json import ScanCommandAttemptAsJson
 from sslyze.plugins.plugin_base import (
     ScanCommandResult,
@@ -30,8 +30,8 @@ class FallbackScsvScanResult(ScanCommandResult):
     supports_fallback_scsv: bool
 
 
-# Identical fields in the JSON output
-FallbackScsvScanResultAsJson = pydantic.dataclasses.dataclass(FallbackScsvScanResult, frozen=True)
+class FallbackScsvScanResultAsJson(BaseModelWithOrmModeAndForbid):
+    supports_fallback_scsv: bool
 
 
 class FallbackScsvScanAttemptAsJson(ScanCommandAttemptAsJson):
@@ -54,8 +54,7 @@ class _FallbackScsvCliConnector(ScanCommandCliConnector[FallbackScsvScanResult, 
 
 
 class FallbackScsvImplementation(ScanCommandImplementation[FallbackScsvScanResult, None]):
-    """Test a server for the TLS_FALLBACK_SCSV mechanism to prevent downgrade attacks.
-    """
+    """Test a server for the TLS_FALLBACK_SCSV mechanism to prevent downgrade attacks."""
 
     cli_connector_cls = _FallbackScsvCliConnector
 

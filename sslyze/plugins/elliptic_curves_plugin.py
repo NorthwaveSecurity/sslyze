@@ -126,8 +126,7 @@ class _SupportedEllipticCurvesCliConnector(ScanCommandCliConnector[SupportedElli
 
 
 class SupportedEllipticCurvesImplementation(ScanCommandImplementation[SupportedEllipticCurvesScanResult, None]):
-    """Test a server for supported elliptic curves.
-    """
+    """Test a server for supported elliptic curves."""
 
     cli_connector_cls = _SupportedEllipticCurvesCliConnector
 
@@ -146,7 +145,7 @@ class SupportedEllipticCurvesImplementation(ScanCommandImplementation[SupportedE
         # https://tools.ietf.org/html/rfc8446#section-4.2.7
         return [
             ScanJob(function_to_call=_test_curve, function_arguments=[server_info, curve_nid])
-            for curve_nid in OpenSslEcNidEnum
+            for curve_nid in OpenSslEcNidEnum.get_supported_by_ssl_client()
         ]
 
     @classmethod
@@ -162,7 +161,9 @@ class SupportedEllipticCurvesImplementation(ScanCommandImplementation[SupportedE
                 raise RuntimeError("Should never happen")
             except _EllipticCurveNotSupported:
                 return SupportedEllipticCurvesScanResult(
-                    supports_ecdh_key_exchange=False, supported_curves=None, rejected_curves=None,
+                    supports_ecdh_key_exchange=False,
+                    supported_curves=None,
+                    rejected_curves=None,
                 )
         else:
             all_ecdh_results = [scan_job.get_result() for scan_job in scan_job_results]
@@ -231,6 +232,9 @@ def _test_curve(server_info: ServerConnectivityInfo, curve_nid: OpenSslEcNidEnum
         elif "sslv3 alert unexpected message" in e.args[0]:
             # https://github.com/nabla-c0d3/sslyze/issues/490
             negotiated_ephemeral_key = None
+        elif "wrong curve" in e.args[0]:
+            # https://github.com/nabla-c0d3/sslyze/issues/579
+            negotiated_ephemeral_key = None
         else:
             raise
 
@@ -249,9 +253,11 @@ def _test_curve(server_info: ServerConnectivityInfo, curve_nid: OpenSslEcNidEnum
                 raise RuntimeError("Should never happen")
 
             return _EllipticCurveResult(
-                curve=EllipticCurve(name=curve_name, openssl_nid=curve_nid.value), was_accepted_by_server=True,
+                curve=EllipticCurve(name=curve_name, openssl_nid=curve_nid.value),
+                was_accepted_by_server=True,
             )
 
     return _EllipticCurveResult(
-        curve=EllipticCurve(name=curve_name, openssl_nid=curve_nid.value), was_accepted_by_server=False,
+        curve=EllipticCurve(name=curve_name, openssl_nid=curve_nid.value),
+        was_accepted_by_server=False,
     )

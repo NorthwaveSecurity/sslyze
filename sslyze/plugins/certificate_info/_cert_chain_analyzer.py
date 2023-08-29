@@ -9,38 +9,14 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import Encoding
 from cryptography.x509 import ExtensionNotFound, ExtensionOID, Certificate, load_pem_x509_certificate, TLSFeature
 from cryptography.x509.ocsp import load_der_ocsp_response, OCSPResponseStatus, OCSPResponse
-from nassl._nassl import X509
-from nassl.cert_chain_verifier import CertificateChainVerifier, CertificateChainVerificationFailed
 import nassl.ocsp_response
 
-from sslyze.plugins.certificate_info._certificate_utils import extract_dns_subject_alternative_names, get_common_names
+from sslyze.plugins.certificate_info._certificate_utils import (
+    parse_subject_alternative_name_extension,
+    get_common_names,
+)
 from sslyze.plugins.certificate_info._symantec import SymantecDistructTester
-from sslyze.plugins.certificate_info.trust_stores.trust_store import TrustStore
-
-
-@dataclass(frozen=True)
-class PathValidationResult:
-    """The result of trying to validate a server's certificate chain using a specific trust store.
-
-    Attributes:
-        trust_stores: The trust store used for validation.
-        verified_certificate_chain: The verified certificate chain returned by OpenSSL.
-            Index 0 is the leaf certificate and the last element is the anchor/CA certificate from the trust store.
-            Will be None if the validation failed or the verified chain could not be built.
-            Each certificate is parsed using the cryptography module; documentation is available at
-            https://cryptography.io/en/latest/x509/reference/#x-509-certificate-object.
-        openssl_error_string: The result string returned by OpenSSL's validation function; None if validation was
-            successful.
-        was_validation_successful: Whether the certificate chain is trusted when using supplied the trust_stores.
-    """
-
-    trust_store: TrustStore
-    verified_certificate_chain: Optional[List[Certificate]]
-    openssl_error_string: Optional[str]
-
-    @property
-    def was_validation_successful(self) -> bool:
-        return True if self.verified_certificate_chain else False
+from sslyze.plugins.certificate_info.trust_stores.trust_store import TrustStore, PathValidationResult
 
 
 @dataclass(frozen=True)
@@ -106,8 +82,7 @@ class CertificateDeploymentAnalysisResult:
 
     @property
     def verified_certificate_chain(self) -> Optional[List[Certificate]]:
-        """Get one of the verified certificate chains if one was successfully built using any of the trust stores.
-        """
+        """Get one of the verified certificate chains if one was successfully built using any of the trust stores."""
         for path_result in self.path_validation_results:
             if path_result.was_validation_successful:
                 return path_result.verified_certificate_chain
@@ -221,7 +196,7 @@ class CertificateDeploymentAnalyzer:
         # Try to generate the verified certificate chain using each trust store
         all_path_validation_results = []
         for trust_store in self.trust_stores_for_validation:
-            path_validation_result = _verify_certificate_chain(self.server_certificate_chain_as_pem, trust_store)
+            path_validation_result = trust_store.verify_certificate_chain(self.server_certificate_chain_as_pem)
             all_path_validation_results.append(path_validation_result)
 
         # Keep one trust store that was able to build the verified chain to then run additional checks
@@ -300,8 +275,7 @@ class CertificateDeploymentAnalyzer:
 
 
 def _certificate_matches_hostname(certificate: Certificate, server_hostname: str) -> bool:
-    """Verify that the certificate was issued for the given hostname.
-    """
+    """Verify that the certificate was issued for the given hostname."""
     # Extract the names from the certificate to create the properly-formatted dictionary
     try:
         cert_subject = certificate.subject
@@ -309,9 +283,13 @@ def _certificate_matches_hostname(certificate: Certificate, server_hostname: str
         # Cryptography could not parse the certificate https://github.com/nabla-c0d3/sslyze/issues/495
         return False
 
+    subj_alt_name_ext = parse_subject_alternative_name_extension(certificate)
+    subj_alt_name_as_list = [("DNS", name) for name in subj_alt_name_ext.dns_names]
+    subj_alt_name_as_list.extend([("IP Address", ip) for ip in subj_alt_name_ext.ip_addresses])
+
     certificate_names = {
         "subject": (tuple([("commonName", name) for name in get_common_names(cert_subject)]),),
-        "subjectAltName": tuple([("DNS", name) for name in extract_dns_subject_alternative_names(certificate)]),
+        "subjectAltName": tuple(subj_alt_name_as_list),
     }
     # CertificateError is raised on failure
     try:
@@ -319,24 +297,3 @@ def _certificate_matches_hostname(certificate: Certificate, server_hostname: str
         return True
     except CertificateError:
         return False
-
-
-def _verify_certificate_chain(server_certificate_chain: List[str], trust_store: TrustStore) -> PathValidationResult:
-    server_chain_as_x509s = [X509(pem_cert) for pem_cert in server_certificate_chain]
-    chain_verifier = CertificateChainVerifier.from_file(trust_store.path)
-
-    verified_chain: Optional[List[Certificate]]
-    try:
-        openssl_verify_str = None
-        verified_chain_as_509s = chain_verifier.verify(server_chain_as_x509s)
-        verified_chain = [
-            load_pem_x509_certificate(x509_cert.as_pem().encode("ascii"), backend=default_backend())
-            for x509_cert in verified_chain_as_509s
-        ]
-    except CertificateChainVerificationFailed as e:
-        verified_chain = None
-        openssl_verify_str = e.openssl_error_string
-
-    return PathValidationResult(
-        trust_store=trust_store, verified_certificate_chain=verified_chain, openssl_error_string=openssl_verify_str
-    )
