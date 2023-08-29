@@ -48,6 +48,10 @@ def get_include_files() -> List[Tuple[str, str]]:
     # The Mozilla profile
     mozilla_profile_path = root_path / "sslyze" / "mozilla_tls_profile" / "5.6.json"
     non_python_files.append((str(mozilla_profile_path), mozilla_profile_path.name))
+
+    # The NCSC profile
+    ncsc_profile_path = root_path / "sslyze" / "ncsc_tls_profile" / "2.1.json"
+    non_python_files.append((str(ncsc_profile_path), ncsc_profile_path.name))
     return non_python_files
 
 
@@ -94,6 +98,7 @@ setup(
         "sslyze": ["py.typed"],
         "sslyze.plugins.certificate_info.trust_stores": ["pem_files/*.pem", "pem_files/*.yaml"],
         "sslyze.mozilla_tls_profile": ["5.6.json"],
+        "sslyze.ncsc_tls_profile": ["2.1.json"],
     },
     entry_points={"console_scripts": ["sslyze = sslyze.__main__:main"]},
     # Dependencies
